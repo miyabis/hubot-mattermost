@@ -6,14 +6,26 @@ catch
 
 class Mattermost extends Adapter
 
-  send: (envelope, strings...) ->
-    for str in strings
-      data = JSON.stringify({
-        icon_url: @icon,
-        channel: @channel ? envelope.user?.room ? envelope.room, # send back to source channel only if not overwritten,
-        username: @robot.name,
-        text: str
-      })
+  send: (envelope, messages...) ->
+    channel = @channel ? envelope.user?.room ? envelope.room # send back to source channel only if not overwritten,
+    username = envelope.changeUsername ? @robot.name
+    icon = envelope.changeIcon ? @icon
+    for message in messages
+      if typeof message isnt "string"
+        data = JSON.stringify({
+          icon_url: icon,
+          channel: channel,
+          username: username,
+          text: message.text,
+          attachments: message.attachments
+        })
+      else
+        data = JSON.stringify({
+          icon_url: icon,
+          channel: channel,
+          username: username,
+          text: message
+        })
       @robot.http(@url)
         .header('Content-Type', 'application/json')
         .post(data) (err, res, body) ->
@@ -56,6 +68,8 @@ class Mattermost extends Adapter
          user = @robot.brain.userForId(req.body.user_id)
          user.name = req.body.user_name
          user.room = req.body.channel_name
+         if req.body.command?
+          msg = req.body.command.substr(1) + ' ' + msg
          @robot.receive new TextMessage(user, msg)
          res.writeHead 200, 'Content-Type': 'text/plain'
          res.end()
