@@ -7,6 +7,10 @@ catch
 class Mattermost extends Adapter
 
   send: (envelope, messages...) ->
+    unless @url?
+      @robot.logger.emergency "url is required"
+      return
+
     channel = @channel ? envelope.user?.room ? envelope.room # send back to source channel only if not overwritten,
     username = envelope.changeUsername ? @robot.name
     icon = envelope.changeIcon ? @icon
@@ -17,14 +21,16 @@ class Mattermost extends Adapter
           channel: channel,
           username: username,
           text: message.text,
-          attachments: message.attachments
+          attachments: message.attachments,
+          ts: new Date / 1000 | 0
         })
       else
         data = JSON.stringify({
           icon_url: icon,
           channel: channel,
           username: username,
-          text: message
+          text: message,
+          ts: new Date / 1000 | 0
         })
       @robot.http(@url)
         .header('Content-Type', 'application/json')
@@ -45,8 +51,8 @@ class Mattermost extends Adapter
     @tokens = process.env.MATTERMOST_TOKEN
     @channel = process.env.MATTERMOST_CHANNEL
     @endpoint = process.env.MATTERMOST_ENDPOINT
-    @url = process.env.MATTERMOST_INCOME_URL 
-    @icon = process.env.MATTERMOST_ICON_URL 
+    @incomeUrl = process.env.MATTERMOST_INCOME_URL 
+    @icon = process.env.MATTERMOST_ICON_URL
     if process.env.MATTERMOST_HUBOT_USERNAME?
       @robot.name = process.env.MATTERMOST_HUBOT_USERNAME
     @selfsigned = this.getBool(process.env.MATTERMOST_SELFSIGNED_CERT) if process.env.MATTERMOST_SELFSIGNED_CERT
@@ -57,9 +63,6 @@ class Mattermost extends Adapter
     unless @endpoint?
       @robot.logger.emergency "MATTERMOST_ENDPOINT is required"
       process.exit 1
-    unless @url?
-      @robot.logger.emergency "MATTERMOST_INCOME_URL is required"
-      process.exit 1
     @robot.router.post @endpoint, (req, res) =>
      # split string values by ',' as process.env return type string no matter what has been defined (eg array, string, int)
      for token in @tokens.split(',')     
@@ -68,8 +71,10 @@ class Mattermost extends Adapter
          user = @robot.brain.userForId(req.body.user_id)
          user.name = req.body.user_name
          user.room = req.body.channel_name
+         @url = @incomeUrl
          if req.body.command?
           msg = req.body.command.substr(1) + ' ' + msg
+          @url = req.body.response_url
          @robot.receive new TextMessage(user, msg)
          res.writeHead 200, 'Content-Type': 'text/plain'
          res.end()
