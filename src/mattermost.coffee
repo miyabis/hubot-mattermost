@@ -14,6 +14,7 @@ class Mattermost extends Adapter
     channel = @channel ? envelope.user?.room ? envelope.room # send back to source channel only if not overwritten,
     username = envelope.changeUsername ? @robot.name
     icon = envelope.changeIcon ? @icon
+
     for message in messages
       if typeof message isnt "string"
         data = JSON.stringify({
@@ -22,7 +23,7 @@ class Mattermost extends Adapter
           username: username,
           text: message.text,
           attachments: message.attachments,
-          ts: new Date / 1000 | 0
+          link_names: 1
         })
       else
         data = JSON.stringify({
@@ -30,8 +31,10 @@ class Mattermost extends Adapter
           channel: channel,
           username: username,
           text: message,
-          ts: new Date / 1000 | 0
+          link_names: 1
         })
+      if @incomeUrl is @url
+        data.response_type = "in_channel"
       @robot.http(@url)
         .header('Content-Type', 'application/json')
         .post(data) (err, res, body) ->
